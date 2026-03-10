@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Prototype</title>
+    <!-- Usando a CDN oficial do esm.sh que costuma ser mais estável para evitar ERR_NAME_NOT_RESOLVED -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1b1b1b; color: white; }
+        canvas { display: block; }
+
+        /* UI Screens */
+        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .screen { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            background: rgba(0,0,0,0.85); pointer-events: all; z-index: 10;
+        }
+        .hidden { display: none !important; }
+
+        h1 { font-size: 3rem; margin-bottom: 2rem; text-shadow: 4px 4px #000; color: #4caf50; text-align: center; }
+        
+        button {
+            padding: 12px 30px; font-size: 1.2rem; cursor: pointer; background: #444; color: white;
+            border: 3px solid #000; margin: 5px; transition: 0.2s;
+        }
+        button:hover { background: #666; transform: scale(1.05); }
+        .btn-play { background: #4caf50; }
+        .btn-danger { background: #f44336; }
+
+        /* Modals */
+        #custom-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #333; padding: 20px; border: 4px solid #000; z-index: 100;
+            display: flex; flex-direction: column; gap: 15px; width: 300px;
+            pointer-events: all;
+        }
+        #custom-modal input {
+            padding: 10px; font-size: 1rem; background: #111; color: white; border: 2px solid #555;
+        }
+
+        /* HUD */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 24px; pointer-events: none; user-select: none;
+        }
+        #inventory {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;
+            pointer-events: all;
+        }
+        .slot {
+            width: 60px; height: 60px; border: 3px solid #555; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; cursor: pointer; background: #222; font-size: 11px; text-align: center;
+        }
+        .slot.selected { border-color: #fff; background: #444; }
+
+        #world-list {
+            width: 80%; max-width: 500px; max-height: 300px; overflow-y: auto;
+            margin-bottom: 20px; background: #222; padding: 10px; border: 2px solid #000;
+        }
+        .world-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-bottom: 1px solid #444;
+        }
+
+        #instructions {
+            position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5);
+            padding: 10px; font-size: 12px; border-radius: 5px; pointer-events: none; line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-overlay">
+        <!-- World Creation Modal -->
+        <div id="custom-modal" class="hidden">
+            <h2 id="modal-title">Novo Mundo</h2>
+            <input type="text" id="world-name-input" placeholder="Nome do mundo">
+            <div style="display:flex; justify-content: center; gap: 10px;">
+                <button class="btn-play" onclick="confirmCreateWorld()" id="btn-modal-confirm">Criar</button>
+                <button onclick="closeModal()" id="btn-modal-cancel">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="menu-screen" class="screen">
+            <h1 id="txt-title">MINECRAFT HTML</h1>
+            <button class="btn-play" onclick="showWorlds()" id="btn-play-main">Jogar</button>
+            <div style="margin-top: 20px;">
+                <span id="txt-lang">Idioma</span>: 
+                <select id="lang-select" style="padding: 5px;" onchange="updateLanguage()">
+                    <option value="pt">Português</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- World Selection -->
+        <div id="worlds-screen" class="screen hidden">
+            <h1 id="txt-worlds-title">Mundos</h1>
+            <div id="world-list"></div>
+            <button onclick="openCreateModal()" id="btn-create-world">Criar Novo Mundo</button>
+            <button onclick="showMenu()" id="btn-back">Voltar</button>
+        </div>
+
+        <!-- Game HUD -->
+        <div id="game-hud" class="hidden">
+            <div id="crosshair">+</div>
+            <div id="instructions"></div>
+            <div id="inventory">
+                <div class="slot selected" data-block="grass" onclick="selectSlot(0)"><span class="block-label">Grama</span></div>
+                <div class="slot" data-block="dirt" onclick="selectSlot(1)"><span class="block-label">Terra</span></div>
+                <div class="slot" data-block="stone" onclick="selectSlot(2)"><span class="block-label">Pedra</span></div>
+                <div class="slot" data-block="wood" onclick="selectSlot(3)"><span class="block-label">Madeira</span></div>
+                <div class="slot" data-block="leaf" onclick="selectSlot(4)"><span class="block-label">Folha</span></div>
+            </div>
+            <button onclick="exitGame()" id="btn-exit" style="position: absolute; top: 10px; left: 10px; padding: 5px 15px; font-size: 14px;">Sair</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Translations ---
+        const translations = {
+            pt: {
+                title: "MINECRAFT HTML", play: "Jogar", lang: "Idioma", worlds: "Mundos",
+                create: "Criar Novo Mundo", back: "Voltar", exit: "Sair", noWorlds: "Nenhum mundo criado.",
+                instructions: "WASD: Mover | Espaço: Pular<br>Clique: Quebrar (Q) | Clique Dir: Colocar (E)<br>1-5: Selecionar Bloco | ESC: Menu",
+                blocks: ["Grama", "Terra", "Pedra", "Madeira", "Folha"],
+                defaultWorldName: "Novo Mundo", modalTitle: "Criar Mundo", confirm: "Criar", cancel: "Cancelar"
+            },
+            en: {
+                title: "MINECRAFT HTML", play: "Play", lang: "Language", worlds: "Worlds",
+                create: "Create New World", back: "Back", exit: "Exit", noWorlds: "No worlds created.",
+                instructions: "WASD: Move | Space: Jump<br>Click: Break (Q) | Right Click: Place (E)<br>1-5: Select Block | ESC: Menu",
+                blocks: ["Grass", "Dirt", "Stone", "Wood", "Leaf"],
+                defaultWorldName: "New World", modalTitle: "Create World", confirm: "Create", cancel: "Cancel"
+            }
+        };
+
+        let currentLang = 'pt';
+
+        function updateLanguage() {
+            currentLang = document.getElementById('lang-select').value;
+            const t = translations[currentLang];
+            document.getElementById('txt-title').innerText = t.title;
+            document.getElementById('btn-play-main').innerText = t.play;
+            document.getElementById('txt-lang').innerText = t.lang;
+            document.getElementById('txt-worlds-title').innerText = t.worlds;
+            document.getElementById('btn-create-world').innerText = t.create;
+            document.getElementById('btn-back').innerText = t.back;
+            document.getElementById('btn-exit').innerText = t.exit;
+            document.getElementById('instructions').innerHTML = t.instructions;
+            document.getElementById('modal-title').innerText = t.modalTitle;
+            document.getElementById('btn-modal-confirm').innerText = t.confirm;
+            document.getElementById('btn-modal-cancel').innerText = t.cancel;
+            document.getElementById('world-name-input').placeholder = t.defaultWorldName;
+            const labels = document.querySelectorAll('.block-label');
+            t.blocks.forEach((name, i) => { if(labels[i]) labels[i].innerText = name; });
+            if (!document.getElementById('worlds-screen').classList.contains('hidden')) renderWorldList();
+        }
+
+        // --- Core Engine Variables ---
+        let scene, camera, renderer;
+        let worlds = [];
+        let currentWorld = null;
+        let worldModifications = {}; 
+        
+        let selectedBlock = 'grass';
+        let blocks = new Map();
+        let loadedChunks = new Set();
+        const CHUNK_SIZE = 8;
+        const RENDER_DISTANCE = 3;
+
+        // Load Initial Data
+        try {
+            worlds = JSON.parse(localStorage.getItem('mc_worlds') || '[]');
+        } catch(e) {
+            console.error("Erro ao carregar mundos", e);
+            worlds = [];
+        }
+
+        const materials = {
+            grass: new THREE.MeshStandardMaterial({ color: 0x559944 }),
+            dirt: new THREE.MeshStandardMaterial({ color: 0x8B5A2B }),
+            stone: new THREE.MeshStandardMaterial({ color: 0x888888 }),
+            wood: new THREE.MeshStandardMaterial({ color: 0x664422 }),
+            leaf: new THREE.MeshStandardMaterial({ color: 0x227722 })
+        };
+
+        const blockBox = new THREE.BoxGeometry(1, 1, 1);
+
+        // Persistent Auto-Save
+        function autoSave() {
+            if (currentWorld) {
+                try {
+                    localStorage.setItem('mc_data_' + currentWorld.id, JSON.stringify(worldModifications));
+                } catch(e) {
+                    console.warn("Storage full or blocked", e);
+                }
+            }
+        }
+
+        function hash(x, z, seed) {
+            let h = seed ^ (x * 374761393) ^ (z * 668265263);
+            h = (h ^ (h >>> 13)) * 1274126177;
+            return (h ^ (h >>> 16)) >>> 0;
+        }
+
+        function getHeight(x, z, seed) {
+            const f1 = 0.05, f2 = 0.02;
+            const n1 = Math.sin(x * f1) * Math.cos(z * f1) * 4;
+            const n2 = Math.sin(x * f2 + 50) * Math.sin(z * f2 + 20) * 10;
+            return Math.floor(n1 + n2 + 10);
+        }
+
+        function initEngine() {
+            if (typeof THREE === 'undefined') {
+                console.error("Three.js não carregou!");
+                return;
+            }
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.Fog(0x87ceeb, 20, 100);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(50, 100, 50);
+            scene.add(sun);
+        }
+
+        function addBlock(x, y, z, type, isNatural = false) {
+            const key = `${x},${y},${z}`;
+
+            if (blocks.has(key)) return;
+
+            // Handle Persistence Logic
+            if (isNatural && worldModifications.hasOwnProperty(key)) {
+                const mod = worldModifications[key];
+                if (mod === null) return; 
+                type = mod; 
+            }
+            
+            if (!isNatural) {
+                worldModifications[key] = type;
+                autoSave();
+            }
+
+            const mesh = new THREE.Mesh(blockBox, materials[type]);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+            blocks.set(key, mesh);
+            return mesh;
+        }
+
+        function removeBlock(x, y, z) {
+            const key = `${x},${y},${z}`;
+            const mesh = blocks.get(key);
+            if (mesh) { 
+                scene.remove(mesh); 
+                blocks.delete(key); 
+                worldModifications[key] = null; 
+                autoSave();
+            }
+        }
+
+        function generateChunk(cx, cz, seed) {
+            const ckey = `${cx},${cz}`;
+            if (loadedChunks.has(ckey)) return;
+            loadedChunks.add(ckey);
+
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                for (let z = 0; z < CHUNK_SIZE; z++) {
+                    const wx = cx * CHUNK_SIZE + x;
+                    const wz = cz * CHUNK_SIZE + z;
+                    const h = getHeight(wx, wz, seed);
+
+                    for (let y = 0; y <= h; y++) {
+                        let type = 'stone';
+                        if (y === h) type = 'grass';
+                        else if (y > h - 3) type = 'dirt';
+                        addBlock(wx, y, wz, type, true);
+                    }
+
+                    if (hash(wx, wz, seed) % 100 > 98) {
+                        for(let th=1; th<=4; th++) addBlock(wx, h+th, wz, 'wood', true);
+                        for(let lx=-1; lx<=1; lx++) for(let lz=-1; lz<=1; lz++) addBlock(wx+lx, h+5, wz+lz, 'leaf', true);
+                    }
+                }
+            }
+
+            // Sync user changes for this chunk
+            Object.keys(worldModifications).forEach(key => {
+                const coords = key.split(',').map(Number);
+                if (coords.length !== 3) return;
+                const [mx, my, mz] = coords;
+                const mcx = Math.floor(mx / CHUNK_SIZE);
+                const mcz = Math.floor(mz / CHUNK_SIZE);
+                if (mcx === cx && mcz === cz) {
+                    const type = worldModifications[key];
+                    if (type !== null) addBlock(mx, my, mz, type, false);
+                }
+            });
+        }
+
+        // --- Controls ---
+        let keys = {};
+        let lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        let canJump = true;
+        let velocityY = 0;
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if(e.code === 'Space' && canJump) { velocityY = 0.25; canJump = false; }
+            if(e.code.startsWith('Digit')) {
+                const idx = parseInt(e.code.replace('Digit', '')) - 1;
+                if(idx >= 0 && idx < 5) selectSlot(idx);
+            }
+            if(e.code === 'KeyQ') interaction('break');
+            if(e.code === 'KeyE') interaction('place');
+            if(e.code === 'Escape' && currentWorld) exitGame();
+        });
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === renderer.domElement) {
+                lookEuler.y -= e.movementX * 0.002;
+                lookEuler.x -= e.movementY * 0.002;
+                lookEuler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, lookEuler.x));
+            }
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (document.pointerLockElement === renderer.domElement) {
+                if (e.button === 0) interaction('break');
+                if (e.button === 2) interaction('place');
+            }
+        });
+
+        function interaction(mode) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = raycaster.intersectObjects(Array.from(blocks.values()));
+            if (intersects.length > 0 && intersects[0].distance < 6) {
+                const hit = intersects[0];
+                const p = hit.object.position;
+                if (mode === 'break') {
+                    removeBlock(p.x, p.y, p.z);
+                } else {
+                    const n = hit.face.normal;
+                    const nx = Math.round(p.x + n.x);
+                    const ny = Math.round(p.y + n.y);
+                    const nz = Math.round(p.z + n.z);
+                    addBlock(nx, ny, nz, selectedBlock, false);
+                }
+            }
+        }
+
+        function updatePhysics() {
+            const speed = 0.12;
+            const dir = new THREE.Vector3();
+            if (keys['KeyW']) dir.z -= 1;
+            if (keys['KeyS']) dir.z += 1;
+            if (keys['KeyA']) dir.x -= 1;
+            if (keys['KeyD']) dir.x += 1;
+            dir.applyEuler(new THREE.Euler(0, lookEuler.y, 0));
+            dir.normalize().multiplyScalar(speed);
+            camera.position.x += dir.x;
+            camera.position.z += dir.z;
+            velocityY -= 0.015;
+            camera.position.y += velocityY;
+            const ix = Math.round(camera.position.x);
+            const iz = Math.round(camera.position.z);
+            const iy = Math.floor(camera.position.y - 1.6);
+            if (blocks.has(`${ix},${iy},${iz}`)) {
+                camera.position.y = iy + 1.6 + 1;
+                velocityY = 0;
+                canJump = true;
+            }
+            camera.quaternion.setFromEuler(lookEuler);
+        }
+
+        // --- UI Logic ---
+        function showMenu() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById('menu-screen').classList.remove('hidden');
+            document.getElementById('game-hud').classList.add('hidden');
+        }
+
+        function showWorlds() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById('worlds-screen').classList.remove('hidden');
+            renderWorldList();
+        }
+
+        function renderWorldList() {
+            const list = document.getElementById('world-list');
+            const t = translations[currentLang];
+            list.innerHTML = worlds.length === 0 ? `<p style="text-align:center">${t.noWorlds}</p>` : '';
+            worlds.forEach((w, i) => {
+                const div = document.createElement('div');
+                div.className = 'world-item';
+                div.innerHTML = `<span>${w.name}</span><div><button class="btn-play" onclick="playGame(${i})">${t.play}</button><button class="btn-danger" onclick="deleteWorld(${i})">X</button></div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function openCreateModal() {
+            document.getElementById('custom-modal').classList.remove('hidden');
+            document.getElementById('world-name-input').value = "";
+            document.getElementById('world-name-input').focus();
+        }
+
+        function closeModal() { document.getElementById('custom-modal').classList.add('hidden'); }
+
+        function confirmCreateWorld() {
+            const t = translations[currentLang];
+            let name = document.getElementById('world-name-input').value.trim();
+            if (!name) name = t.defaultWorldName + " " + (worlds.length + 1);
+            const seed = Math.floor(Math.random() * 999999);
+            const id = 'world_' + Date.now();
+            worlds.push({ id, name, seed });
+            localStorage.setItem('mc_worlds', JSON.stringify(worlds));
+            renderWorldList();
+            closeModal();
+        }
+
+        function deleteWorld(i) {
+            localStorage.removeItem('mc_data_' + worlds[i].id); 
+            worlds.splice(i, 1);
+            localStorage.setItem('mc_worlds', JSON.stringify(worlds));
+            renderWorldList();
+        }
+
+        function playGame(i) {
+            currentWorld = worlds[i];
+            try {
+                const savedData = localStorage.getItem('mc_data_' + currentWorld.id);
+                worldModifications = savedData ? JSON.parse(savedData) : {};
+            } catch(e) {
+                worldModifications = {};
+            }
+
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById('game-hud').classList.remove('hidden');
+            
+            blocks.forEach(mesh => scene.remove(mesh));
+            blocks.clear();
+            loadedChunks.clear();
+            
+            camera.position.set(0, 30, 0);
+            lookEuler.set(0, 0, 0);
+            velocityY = 0;
+
+            renderer.domElement.requestPointerLock();
+            requestAnimationFrame(animate);
+        }
+
+        function exitGame() {
+            autoSave();
+            currentWorld = null;
+            if (document.pointerLockElement) document.exitPointerLock();
+            showMenu();
+        }
+
+        function selectSlot(i) {
+            const slots = document.querySelectorAll('.slot');
+            slots.forEach(s => s.classList.remove('selected'));
+            slots[i].classList.add('selected');
+            selectedBlock = slots[i].dataset.block;
+        }
+
+        function animate() {
+            if (!currentWorld) return;
+            requestAnimationFrame(animate);
+            updatePhysics();
+            const cx = Math.floor(camera.position.x / CHUNK_SIZE);
+            const cz = Math.floor(camera.position.z / CHUNK_SIZE);
+            for (let x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
+                for (let z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
+                    generateChunk(cx + x, cz + z, currentWorld.seed);
+                }
+            }
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => { initEngine(); updateLanguage(); showMenu(); };
+        window.onresize = () => { 
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight; 
+                camera.updateProjectionMatrix(); 
+                renderer.setSize(window.innerWidth, window.innerHeight); 
+            }
+        };
+
+        // Extra safety for refresh
+        window.addEventListener('beforeunload', autoSave);
+    </script>
+</body>
+</html>
