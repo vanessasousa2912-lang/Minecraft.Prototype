@@ -3,66 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft Survival - Luis Edition</title>
+    <title>Minecraft Creative - Luis Edition V5</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/jwagner/simplex-noise.js/simplex-noise.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #1b1b1b; color: white; user-select: none; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #000; color: white; user-select: none; }
         canvas { display: block; }
-
         #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .screen { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            background: rgba(0,0,0,0.85); pointer-events: all; z-index: 10;
-        }
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); pointer-events: all; z-index: 100; }
         .hidden { display: none !important; }
-
-        .world-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; width: 300px; }
-        .world-item { 
-            padding: 15px; background: #333; border: 2px solid #555; cursor: pointer; 
-            text-align: center; transition: 0.2s; 
-        }
-        .world-item:hover { background: #444; border-color: #fff; }
+        
+        .menu-card { background: #333; padding: 25px; border: 4px solid #000; display: flex; flex-direction: column; gap: 12px; width: 380px; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .btn-mine { padding: 10px; background: #555; border: 3px solid #000; color: white; cursor: pointer; font-weight: bold; text-transform: uppercase; font-family: inherit; }
+        .btn-mine:hover { background: #777; border-color: #fff; }
+        .btn-danger { background: #822; }
+        .btn-danger:hover { background: #a33; }
+        
+        input { padding: 10px; background: #222; border: 2px solid #555; color: white; font-family: inherit; margin-bottom: 5px; }
 
         #game-hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; }
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; opacity: 0.8; }
         
-        #stats { position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; }
-        .heart { width: 18px; height: 18px; background: red; border: 2px solid #000; border-radius: 3px; }
-        .heart.empty { background: #444; }
+        #inventory-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; background: rgba(0,0,0,0.7); padding: 6px; border: 3px solid #555; pointer-events: all; }
+        .slot { width: 50px; height: 50px; border: 3px solid #444; display: flex; align-items: center; justify-content: center; background: #222; position: relative; }
+        .slot.selected { border-color: #fff; background: #666; }
+        .slot-img { width: 35px; height: 35px; }
 
-        #inventory-bar {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 5px; background: rgba(0,0,0,0.7); padding: 5px; border: 2px solid #555; pointer-events: all;
-        }
-        .slot {
-            width: 45px; height: 45px; border: 2px solid #444; display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; background: #222; position: relative; font-size: 9px; text-align: center;
-        }
-        .slot.selected { border-color: #fff; background: #555; }
-        .count { position: absolute; bottom: 2px; right: 4px; font-weight: bold; font-size: 11px; color: #fff; text-shadow: 1px 1px #000; }
+        .world-list { max-height: 180px; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; background: #222; padding: 5px; border: 2px solid #000; }
+        .world-item { background: #444; padding: 10px; cursor: pointer; border: 1px solid #666; font-size: 14px; text-align: left; display: flex; justify-content: space-between; }
+        .world-item:hover { background: #555; border-color: #fff; }
 
-        #save-indicator {
-            position: absolute; top: 20px; right: 20px; padding: 10px; background: rgba(0,255,0,0.2);
-            border: 1px solid lime; border-radius: 5px; display: none; font-size: 12px;
-        }
-
-        #breaking-progress {
-            position: absolute; top: 60%; left: 50%; transform: translateX(-50%);
-            width: 100px; height: 10px; border: 2px solid white; display: none;
-        }
-        #breaking-bar { width: 0%; height: 100%; background: #ffff00; }
-
-        #crafting-screen {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #333; border: 4px solid #000; padding: 20px; pointer-events: all;
-            display: flex; flex-direction: column; align-items: center; gap: 20px;
-        }
-        .crafting-grid { display: grid; gap: 5px; }
-        .grid-2x2 { grid-template-columns: repeat(2, 55px); }
-        .grid-3x3 { grid-template-columns: repeat(3, 55px); }
-        .craft-slot { width: 55px; height: 55px; background: #111; border: 2px solid #555; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px; }
-        .craft-result { width: 65px; height: 65px; background: #222; border: 3px solid #fff; margin-left: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+        #mode-indicator { position: absolute; bottom: 85px; left: 20px; background: rgba(0,0,0,0.5); padding: 5px 10px; font-size: 12px; border-left: 4px solid #5d9944; }
+        
+        .lang-selector { display: flex; gap: 5px; justify-content: center; margin-bottom: 10px; }
+        .lang-btn { background: #444; border: 1px solid #666; color: white; padding: 3px 8px; cursor: pointer; font-size: 10px; }
+        .lang-btn.active { border-color: #5d9944; background: #222; }
     </style>
 </head>
 <body>
@@ -70,473 +45,544 @@
     <div id="ui-overlay">
         <!-- Main Menu -->
         <div id="menu-screen" class="screen">
-            <h1>MINECRAFT SURVIVAL</h1>
-            <p>Luis Edition - LocalStorage</p>
-            <button id="btn-start" style="padding: 15px 30px; font-size: 1.2rem; cursor: pointer;">JOGAR</button>
-        </div>
-
-        <!-- World Selector -->
-        <div id="world-screen" class="screen hidden">
-            <h2>Selecione o Mundo</h2>
-            <div class="world-list">
-                <div class="world-item" onclick="selectWorld(1)">Mundo 1 <span id="w1-status" style="font-size: 10px; color: #888;"></span></div>
-                <div class="world-item" onclick="selectWorld(2)">Mundo 2 <span id="w2-status" style="font-size: 10px; color: #888;"></span></div>
-                <div class="world-item" onclick="selectWorld(3)">Mundo 3 <span id="w3-status" style="font-size: 10px; color: #888;"></span></div>
+            <div class="menu-card">
+                <div class="lang-selector">
+                    <button class="lang-btn active" onclick="setLang('pt')">PT</button>
+                    <button class="lang-btn" onclick="setLang('en')">EN</button>
+                    <button class="lang-btn" onclick="setLang('es')">ES</button>
+                </div>
+                <h1 style="margin: 0; color: #5d9944; text-shadow: 2px 2px #000;">MINECRAFT</h1>
+                <p style="margin: -5px 0 10px 0; font-size: 10px; letter-spacing: 2px;">LUIS EDITION - V5.0</p>
+                <div class="world-list" id="world-list"></div>
+                <button class="btn-mine" data-i18n="create_btn" onclick="showCreateScreen()">Criar Novo Mundo</button>
             </div>
-            <button onclick="backToMenu()" style="margin-top: 20px; background: none; border: none; color: white; cursor: pointer; text-decoration: underline;">Voltar</button>
         </div>
 
-        <div id="crafting-screen" class="hidden">
-            <h2 id="craft-title">Criação</h2>
-            <div style="display: flex; align-items: center;">
-                <div id="grid-container" class="crafting-grid"></div>
-                <div style="margin: 0 15px; font-size: 24px;">➡</div>
-                <div id="result-slot" class="craft-result"></div>
+        <!-- Create Screen -->
+        <div id="create-screen" class="screen hidden">
+            <div class="menu-card">
+                <h2 data-i18n="new_world_title">Novo Mundo</h2>
+                <input type="text" id="world-name" data-i18n-placeholder="name_placeholder" maxlength="20">
+                <input type="text" id="world-seed" data-i18n-placeholder="seed_placeholder">
+                <button class="btn-mine" data-i18n="create_confirm" onclick="createNewWorld()">Criar</button>
+                <button class="btn-mine btn-danger" data-i18n="cancel" onclick="hideCreateScreen()">Cancelar</button>
             </div>
-            <p style="font-size: 12px; color: #aaa;">Pressione 'E' para fechar</p>
         </div>
 
+        <!-- Options Screen -->
+        <div id="options-screen" class="screen hidden">
+            <div class="menu-card">
+                <h2 id="selected-world-title">Mundo</h2>
+                <button class="btn-mine" data-i18n="play" onclick="playSelectedWorld()">Jogar</button>
+                <button class="btn-mine" data-i18n="rename" onclick="renameSelectedWorld()">Renomear</button>
+                <button class="btn-mine btn-danger" data-i18n="delete" onclick="deleteSelectedWorld()">Excluir</button>
+                <button class="btn-mine" data-i18n="back" onclick="hideOptionsScreen()">Voltar</button>
+            </div>
+        </div>
+
+        <!-- Game HUD -->
         <div id="game-hud" class="hidden">
             <div id="crosshair">+</div>
-            <div id="stats"></div>
-            <div id="save-indicator">Mundo Salvo!</div>
-            <div id="breaking-progress"><div id="breaking-bar"></div></div>
+            <div id="mode-indicator" data-i18n="creative_mode">MODO CRIATIVO</div>
             <div id="inventory-bar"></div>
+            <div id="time-display" style="position: absolute; top: 20px; right: 20px; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px 10px;">08:00</div>
         </div>
     </div>
 
     <script>
-        // --- CONFIGURAÇÕES ---
-        const CHUNK_SIZE = 16;
-        const RENDER_DISTANCE = 2;
-        const STACK_LIMIT = 64;
-        const WATER_LEVEL = 8;
-        const PLAYER_HEIGHT = 1.62;
-        let currentWorldId = 1;
-        
-        const BLOCK_DATA = {
-            grass: { name: "Grama", hardness: 0.5, color: '#5d9944' },
-            dirt: { name: "Terra", hardness: 0.5, color: '#79553a' },
-            stone: { name: "Pedra", hardness: 2.0, color: '#888888' },
-            wood: { name: "Madeira", hardness: 1.0, color: '#6b4b3a' },
-            planks: { name: "Tábuas", hardness: 0.8, color: '#a27a4e' },
-            leaf: { name: "Folha", hardness: 0.1, color: '#337733', opacity: 0.8 },
-            sand: { name: "Areia", hardness: 0.4, color: '#ddd1a3' },
-            cactus: { name: "Cacto", hardness: 0.3, color: '#2d4d22' },
-            crafting_table: { name: "Bancada", hardness: 1.0, color: '#a27a4e' },
-            stick: { name: "Graveto", isItem: true },
-            axe: { name: "Machado", isItem: true, power: 3.0 }
+        // --- TRANSLATIONS ---
+        const i18n = {
+            pt: {
+                create_btn: "Criar Novo Mundo",
+                new_world_title: "Novo Mundo Criativo",
+                name_placeholder: "Nome do Mundo",
+                seed_placeholder: "Seed (Opcional)",
+                create_confirm: "Criar",
+                cancel: "Cancelar",
+                play: "Jogar",
+                rename: "Renomear",
+                delete: "Excluir",
+                back: "Voltar",
+                creative_mode: "MODO CRIATIVO",
+                flying: "VOANDO",
+                empty_worlds: "Sem mundos salvos",
+                rename_prompt: "Novo nome do mundo:"
+            },
+            en: {
+                create_btn: "Create New World",
+                new_world_title: "New Creative World",
+                name_placeholder: "World Name",
+                seed_placeholder: "Seed (Optional)",
+                create_confirm: "Create",
+                cancel: "Cancel",
+                play: "Play",
+                rename: "Rename",
+                delete: "Delete",
+                back: "Back",
+                creative_mode: "CREATIVE MODE",
+                flying: "FLYING",
+                empty_worlds: "No worlds saved",
+                rename_prompt: "New world name:"
+            },
+            es: {
+                create_btn: "Crear Nuevo Mundo",
+                new_world_title: "Nuevo Mundo Creativo",
+                name_placeholder: "Nombre del Mundo",
+                seed_placeholder: "Seed (Opcional)",
+                create_confirm: "Crear",
+                cancel: "Cancelar",
+                play: "Jugar",
+                rename: "Renombrar",
+                delete: "Eliminar",
+                back: "Volver",
+                creative_mode: "MODO CREATIVO",
+                flying: "VOLANDO",
+                empty_worlds: "Sin mundos guardados",
+                rename_prompt: "Nuevo nombre del mundo:"
+            }
         };
 
-        const RECIPES = [
-            { input: [['wood']], output: 'planks', count: 4, size: 2 },
-            { input: [['planks'], ['planks']], output: 'stick', count: 4, size: 2 },
-            { input: [['planks', 'planks'], ['planks', 'planks']], output: 'crafting_table', count: 1, size: 2 },
-            { input: [['planks', 'planks', ''], ['planks', 'stick', ''], ['', 'stick', '']], output: 'axe', count: 1, size: 3 }
-        ];
+        let currentLang = 'pt';
 
-        // --- MOTOR DE JOGO ---
-        let scene, camera, renderer, clock;
-        let health = 10;
-        let inventory = Array(9).fill(null);
+        function setLang(lang) {
+            currentLang = lang;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.lang-btn[onclick="setLang('${lang}')"]`).classList.add('active');
+            updateUIStrings();
+            refreshWorldList();
+        }
+
+        function updateUIStrings() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                el.innerText = i18n[currentLang][key] || key;
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                el.placeholder = i18n[currentLang][key] || key;
+            });
+        }
+
+        // --- ENGINE CONFIG ---
+        const CHUNK_SIZE = 16;
+        const RENDER_DIST = 3; 
+        const WATER_LEVEL = 10;
+        const PLAYER_HEIGHT = 1.7;
+        let simplex = new SimplexNoise();
+        let simplexBiomes = new SimplexNoise("biomes");
+        
+        const BLOCK_DATA = {
+            grass: { color: '#5d9944', solid: true },
+            dirt: { color: '#79553a', solid: true },
+            stone: { color: '#888888', solid: true },
+            sand: { color: '#ddd1a3', solid: true },
+            wood: { color: '#543d21', solid: true },
+            leaf: { color: '#2d5a27', solid: true, opacity: 0.8 },
+            cactus: { color: '#1a4d1a', solid: true },
+            water: { color: '#3366ff', solid: false, opacity: 0.6, water: true },
+            planks: { color: '#a27a4e', solid: true },
+            glass: { color: '#e0f7fa', solid: true, opacity: 0.3 }
+        };
+
+        const inventory_list = ['grass', 'dirt', 'stone', 'planks', 'wood', 'leaf', 'sand', 'cactus', 'glass'];
         let selectedSlot = 0;
-        let isInventoryOpen = false;
-        let isUsingWorkBench = false;
-        
-        let blocks = new Map();
-        let chunks = new Map();
-        let currentBreaking = { key: null, startTime: 0, duration: 0 };
-        
-        let velocityY = 0;
-        let lastY = 0;
-        let isGrounded = false;
-        let lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+        const textures = {};
+        Object.keys(BLOCK_DATA).forEach(type => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16; canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = BLOCK_DATA[type].color;
+            ctx.fillRect(0, 0, 16, 16);
+            for(let i=0; i<30; i++) {
+                ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.15})`;
+                ctx.fillRect(Math.random()*16, Math.random()*16, 1, 1);
+            }
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.strokeRect(0, 0, 16, 16);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            textures[type] = tex;
+        });
+
+        // --- GAME STATE ---
+        let scene, camera, renderer, clock, sun, moon, cloudsGroup;
+        let worldMap = new Map();
+        let chunkMeshes = new Map();
         let keys = {};
-        let waterPlane;
-        const downRaycaster = new THREE.Raycaster();
+        let velocity = new THREE.Vector3();
+        let lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        let gameTime = 8;
+        let currentWorldId = null;
+        let isFlying = false;
+        let lastJumpTap = 0;
 
-        // --- PERSISTÊNCIA ---
-        function getSaveKey() { return `minecraft_luis_save_world_${currentWorldId}`; }
-
-        function saveWorld() {
-            const worldData = {};
-            blocks.forEach((mesh, key) => { worldData[key] = mesh.userData.type; });
-            const saveData = {
-                player: { pos: camera.position, rot: { x: lookEuler.x, y: lookEuler.y }, health: health },
-                inventory: inventory,
-                world: worldData
-            };
-            localStorage.setItem(getSaveKey(), JSON.stringify(saveData));
-            showSaveIndicator();
-        }
-
-        function loadWorld() {
-            const data = localStorage.getItem(getSaveKey());
-            return data ? JSON.parse(data) : null;
-        }
-
-        function showSaveIndicator() {
-            const el = document.getElementById('save-indicator');
-            el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 2000);
-        }
-
-        // --- INICIALIZAÇÃO ---
-        function initGame(savedData) {
+        function initEngine() {
+            if(renderer) return;
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb);
-            scene.fog = new THREE.Fog(0x87ceeb, 20, 70);
-            
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: false });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
-            
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            const sun = new THREE.DirectionalLight(0xffffff, 0.5);
-            sun.position.set(20, 50, 20);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+            // Celestial bodies
+            const sunGeo = new THREE.BoxGeometry(4, 4, 4);
+            sun = new THREE.Mesh(sunGeo, new THREE.MeshBasicMaterial({ color: 0xffff00 }));
             scene.add(sun);
 
-            const waterGeo = new THREE.PlaneGeometry(2000, 2000);
-            const waterMat = new THREE.MeshStandardMaterial({ color: 0x3366ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-            waterPlane = new THREE.Mesh(waterGeo, waterMat);
-            waterPlane.rotation.x = -Math.PI / 2;
-            waterPlane.position.y = WATER_LEVEL + 0.45;
-            scene.add(waterPlane);
+            const moonGeo = new THREE.BoxGeometry(3, 3, 3);
+            moon = new THREE.Mesh(moonGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc }));
+            scene.add(moon);
+
+            // Clouds
+            cloudsGroup = new THREE.Group();
+            for(let i=0; i<20; i++) {
+                const cloud = new THREE.Mesh(
+                    new THREE.BoxGeometry(10+Math.random()*20, 1, 10+Math.random()*20),
+                    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
+                );
+                cloud.position.set(Math.random()*400-200, 45, Math.random()*400-200);
+                cloudsGroup.add(cloud);
+            }
+            scene.add(cloudsGroup);
 
             clock = new THREE.Clock();
-
-            if (savedData) {
-                camera.position.set(savedData.player.pos.x, savedData.player.pos.y, savedData.player.pos.z);
-                lookEuler.x = savedData.player.rot.x;
-                lookEuler.y = savedData.player.rot.y;
-                health = savedData.player.health;
-                inventory = savedData.inventory;
-                for (let key in savedData.world) {
-                    const [x, y, z] = key.split(',').map(Number);
-                    addBlock(x, y, z, savedData.world[key]);
-                }
-            } else {
-                camera.position.set(0, 20, 0);
-                inventory[0] = {type: 'wood', count: 16};
-            }
-
-            updateHUD();
-            setInterval(saveWorld, 15000);
-        }
-
-        // --- GERAÇÃO PROCEDURAL COM ÁRVORES ---
-        function createTree(x, y, z) {
-            // Tronco
-            for(let i=1; i<=4; i++) addBlock(x, y+i, z, 'wood');
-            // Copa
-            for(let lx=-2; lx<=2; lx++) {
-                for(let lz=-2; lz<=2; lz++) {
-                    for(let ly=0; ly<=1; ly++) {
-                        if(Math.abs(lx) + Math.abs(lz) < 3) addBlock(x+lx, y+4+ly, z+lz, 'leaf');
-                    }
-                }
-            }
-            addBlock(x, y+6, z, 'leaf');
-            addBlock(x+1, y+6, z, 'leaf');
-            addBlock(x-1, y+6, z, 'leaf');
-            addBlock(x, y+6, z+1, 'leaf');
-            addBlock(x, y+6, z-1, 'leaf');
-        }
-
-        function generateChunk(cx, cz) {
-            const chunkKey = `${cx},${cz}`;
-            if (chunks.has(chunkKey)) return;
-            chunks.set(chunkKey, true);
-
-            for (let x = 0; x < CHUNK_SIZE; x++) {
-                for (let z = 0; z < CHUNK_SIZE; z++) {
-                    const wx = cx * CHUNK_SIZE + x;
-                    const wz = cz * CHUNK_SIZE + z;
-                    
-                    const groundHeight = Math.floor((Math.sin(wx * 0.08) * Math.cos(wz * 0.08) * 4) + 10);
-                    const isDesert = (Math.sin(wx * 0.05) + Math.cos(wz * 0.05)) > 0.8;
-
-                    for (let y = 0; y <= groundHeight; y++) {
-                        const key = `${wx},${y},${wz}`;
-                        if (!blocks.has(key)) {
-                            let type = 'stone';
-                            if (y === groundHeight) {
-                                if (isDesert || y <= WATER_LEVEL + 1) type = 'sand';
-                                else {
-                                    type = 'grass';
-                                    // Chance de árvore
-                                    if(Math.random() < 0.02 && y > WATER_LEVEL + 2) {
-                                        createTree(wx, y, wz);
-                                    }
-                                }
-                            } else if (y > groundHeight - 3) {
-                                type = isDesert ? 'sand' : 'dirt';
-                            }
-                            addBlock(wx, y, wz, type);
-                        }
-                    }
-                }
-            }
-        }
-
-        const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-        const texCache = {};
-
-        function getMaterial(type) {
-            if (texCache[type]) return texCache[type];
-            const data = BLOCK_DATA[type];
-            const canvas = document.createElement('canvas');
-            canvas.width = 16; canvas.height = 16;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = data.color;
-            ctx.fillRect(0,0,16,16);
-            ctx.fillStyle = "rgba(0,0,0,0.1)";
-            for(let i=0; i<20; i++) ctx.fillRect(Math.random()*16, Math.random()*16, 1, 1);
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.magFilter = THREE.NearestFilter;
-            const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: !!data.opacity, opacity: data.opacity || 1 });
-            texCache[type] = mat;
-            return mat;
-        }
-
-        function addBlock(x, y, z, type) {
-            const key = `${x},${y},${z}`;
-            if (blocks.has(key)) return;
-            const mesh = new THREE.Mesh(boxGeo, getMaterial(type));
-            mesh.position.set(x, y, z);
-            mesh.userData = { type };
-            scene.add(mesh);
-            blocks.set(key, mesh);
-        }
-
-        function removeBlock(x, y, z) {
-            const key = `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
-            const mesh = blocks.get(key);
-            if (mesh) {
-                scene.remove(mesh);
-                blocks.delete(key);
-                return mesh.userData.type;
-            }
-            return null;
-        }
-
-        function updateHUD() {
-            const stats = document.getElementById('stats');
-            stats.innerHTML = '';
-            for(let i=0; i<10; i++) {
-                const h = document.createElement('div');
-                h.className = `heart ${i >= health ? 'empty' : ''}`;
-                stats.appendChild(h);
-            }
-            const invBar = document.getElementById('inventory-bar');
-            invBar.innerHTML = '';
-            for(let i=0; i<9; i++) {
-                const item = inventory[i];
-                const s = document.createElement('div');
-                s.className = `slot ${i === selectedSlot ? 'selected' : ''}`;
-                if (item && item.count > 0) {
-                    s.innerHTML = `<span>${BLOCK_DATA[item.type].name}</span><span class="count">${item.count}</span>`;
-                }
-                invBar.appendChild(s);
-            }
-        }
-
-        function addToInventory(type, amt) {
-            if (!type) return;
-            for (let item of inventory) {
-                if (item && item.type === type && item.count < STACK_LIMIT) {
-                    const canAdd = Math.min(amt, STACK_LIMIT - item.count);
-                    item.count += canAdd;
-                    amt -= canAdd;
-                    if (amt <= 0) { updateHUD(); return; }
-                }
-            }
-            while (amt > 0) {
-                const emptyIdx = inventory.findIndex(i => !i || i.count === 0);
-                if (emptyIdx === -1) break;
-                const toAdd = Math.min(amt, STACK_LIMIT);
-                inventory[emptyIdx] = { type, count: toAdd };
-                amt -= toAdd;
-            }
-            updateHUD();
-        }
-
-        function updatePhysics() {
-            if(isInventoryOpen) return;
-            const speed = keys['ShiftLeft'] ? 0.22 : 0.13;
-            const move = new THREE.Vector3();
-            if (keys['KeyW']) move.z -= 1;
-            if (keys['KeyS']) move.z += 1;
-            if (keys['KeyA']) move.x -= 1;
-            if (keys['KeyD']) move.x += 1;
-            move.applyEuler(new THREE.Euler(0, lookEuler.y, 0)).normalize().multiplyScalar(speed);
-
-            const p = camera.position;
-            const radius = 0.3;
-            if (!isSolidBlockAt(p.x + move.x + Math.sign(move.x)*radius, p.y - 1.5, p.z)) p.x += move.x;
-            if (!isSolidBlockAt(p.x, p.y - 1.5, p.z + move.z + Math.sign(move.z)*radius)) p.z += move.z;
-
-            const inWater = p.y < WATER_LEVEL + 1.5;
-            velocityY -= (inWater ? 0.005 : 0.015);
-            velocityY = Math.max(velocityY, inWater ? -0.1 : -0.6); 
-            p.y += velocityY;
-
-            isGrounded = false;
-            downRaycaster.set(p, new THREE.Vector3(0, -1, 0));
-            const intersects = downRaycaster.intersectObjects(Array.from(blocks.values()));
-            if (intersects.length > 0) {
-                const dist = intersects[0].distance;
-                if (dist <= PLAYER_HEIGHT + Math.max(0, -velocityY)) {
-                    if (velocityY <= 0) {
-                        p.y = intersects[0].point.y + PLAYER_HEIGHT;
-                        velocityY = 0; 
-                        isGrounded = true;
-                    }
-                }
-            }
-            camera.quaternion.setFromEuler(lookEuler);
-            const cx = Math.floor(p.x / CHUNK_SIZE);
-            const cz = Math.floor(p.z / CHUNK_SIZE);
-            for(let dx=-RENDER_DISTANCE; dx<=RENDER_DISTANCE; dx++) {
-                for(let dz=-RENDER_DISTANCE; dz<=RENDER_DISTANCE; dz++) generateChunk(cx + dx, cz + dz);
-            }
-        }
-
-        function isSolidBlockAt(x, y, z) {
-            return blocks.has(`${Math.round(x)},${Math.round(y)},${Math.round(z)}`);
-        }
-
-        let mouseBtn = -1;
-        function handleInteractions() {
-            if(isInventoryOpen || mouseBtn === -1) {
-                document.getElementById('breaking-progress').style.display = 'none';
-                currentBreaking.key = null;
-                return;
-            }
-            const ray = new THREE.Raycaster();
-            ray.setFromCamera({x:0, y:0}, camera);
-            const intersects = ray.intersectObjects(Array.from(blocks.values()));
-            if(intersects.length > 0 && intersects[0].distance < 5) {
-                const hit = intersects[0];
-                const pos = hit.object.position;
-                const key = `${pos.x},${pos.y},${pos.z}`;
-                if(mouseBtn === 0) {
-                    if(currentBreaking.key !== key) {
-                        currentBreaking = { key, startTime: Date.now(), duration: BLOCK_DATA[hit.object.userData.type].hardness * 1000 };
-                    }
-                    const elapsed = Date.now() - currentBreaking.startTime;
-                    const pct = (elapsed / currentBreaking.duration) * 100;
-                    document.getElementById('breaking-progress').style.display = 'block';
-                    document.getElementById('breaking-bar').style.width = pct + '%';
-                    if(pct >= 100) {
-                        const type = removeBlock(pos.x, pos.y, pos.z);
-                        addToInventory(type, 1);
-                        currentBreaking.key = null;
-                        document.getElementById('breaking-progress').style.display = 'none';
-                    }
-                }
-            } else document.getElementById('breaking-progress').style.display = 'none';
-        }
-
-        // --- MENU LOGIC ---
-        function backToMenu() {
-            document.getElementById('world-screen').classList.add('hidden');
-            document.getElementById('menu-screen').classList.remove('hidden');
-        }
-
-        function selectWorld(id) {
-            currentWorldId = id;
-            const savedData = loadWorld();
-            document.getElementById('world-screen').classList.add('hidden');
-            document.getElementById('game-hud').classList.remove('hidden');
-            initGame(savedData);
-            renderer.domElement.requestPointerLock();
             animate();
         }
 
-        function refreshWorldStats() {
-            for(let i=1; i<=3; i++) {
-                const data = localStorage.getItem(`minecraft_luis_save_world_${i}`);
-                document.getElementById(`w${i}-status`).innerText = data ? "(Salvo)" : "(Vazio)";
+        // --- WORLD GEN ---
+        function getBiome(x, z) {
+            const v = simplexBiomes.noise2D(x/250, z/250);
+            if (v < -0.3) return 'DESERTO';
+            if (v > 0.4) return 'FLORESTA';
+            return 'PLANICIE';
+        }
+
+        function generateChunk(cx, cz) {
+            const key = `${cx},${cz}`;
+            if (worldMap.has(key + "_gen")) return;
+            worldMap.set(key + "_gen", true);
+
+            for(let x=0; x<CHUNK_SIZE; x++) {
+                for(let z=0; z<CHUNK_SIZE; z++) {
+                    const wx = cx * CHUNK_SIZE + x;
+                    const wz = cz * CHUNK_SIZE + z;
+                    const biome = getBiome(wx, wz);
+                    
+                    let h;
+                    if(biome === 'PLANICIE') h = Math.floor(simplex.noise2D(wx/60, wz/60) * 4 + 13);
+                    else if(biome === 'DESERTO') h = Math.floor(simplex.noise2D(wx/100, wz/100) * 2 + 12);
+                    else h = Math.floor(simplex.noise2D(wx/40, wz/40) * 8 + 15);
+
+                    for(let y=0; y<25; y++) {
+                        let type = null;
+                        if(y <= h) {
+                            if(y === h) type = (biome === 'DESERTO') ? 'sand' : 'grass';
+                            else if(y > h - 3) type = (biome === 'DESERTO') ? 'sand' : 'dirt';
+                            else type = 'stone';
+                        } else if (y <= WATER_LEVEL) {
+                            type = 'water';
+                        }
+                        if(type) worldMap.set(`${wx},${y},${wz}`, type);
+                    }
+
+                    // Vegetation
+                    if(h > WATER_LEVEL) {
+                        const r = Math.random();
+                        if(biome === 'FLORESTA' && r < 0.05) createTree(wx, h+1, wz);
+                        else if(biome === 'PLANICIE' && r < 0.006) createTree(wx, h+1, wz);
+                        else if(biome === 'DESERTO' && r < 0.015) createCactus(wx, h+1, wz);
+                    }
+                }
+            }
+            renderChunk(cx, cz);
+        }
+
+        function createTree(x, y, z) {
+            for(let i=0; i<5; i++) worldMap.set(`${x},${y+i},${z}`, 'wood');
+            for(let ix=-2; ix<=2; ix++) {
+                for(let iz=-2; iz<=2; iz++) {
+                    for(let iy=3; iy<=5; iy++) {
+                        const k = `${x+ix},${y+iy},${z+iz}`;
+                        if(!worldMap.has(k)) worldMap.set(k, 'leaf');
+                    }
+                }
             }
         }
 
-        document.getElementById('btn-start').onclick = () => {
-            document.getElementById('menu-screen').classList.add('hidden');
-            document.getElementById('world-screen').classList.remove('hidden');
-            refreshWorldStats();
-        };
-
-        // --- UI & EVENTS ---
-        function openCrafting(workbench = false) {
-            isInventoryOpen = true;
-            isUsingWorkBench = workbench;
-            document.exitPointerLock();
-            document.getElementById('crafting-screen').classList.remove('hidden');
+        function createCactus(x, y, z) {
+            const h = 2 + Math.floor(Math.random()*2);
+            for(let i=0; i<h; i++) worldMap.set(`${x},${y+i},${z}`, 'cactus');
         }
 
-        function closeInventory() {
-            isInventoryOpen = false;
-            document.getElementById('crafting-screen').classList.add('hidden');
+        function renderChunk(cx, cz) {
+            const key = `${cx},${cz}`;
+            if(chunkMeshes.has(key)) scene.remove(chunkMeshes.get(key));
+
+            const group = new THREE.Group();
+            const types = {};
+
+            for(let x=0; x<CHUNK_SIZE; x++) {
+                for(let z=0; z<CHUNK_SIZE; z++) {
+                    for(let y=0; y<45; y++) {
+                        const wx = cx*CHUNK_SIZE+x, wz = cz*CHUNK_SIZE+z;
+                        const type = worldMap.get(`${wx},${y},${wz}`);
+                        if(!type) continue;
+                        
+                        const n = [
+                            worldMap.has(`${wx+1},${y},${wz}`), worldMap.has(`${wx-1},${y},${wz}`),
+                            worldMap.has(`${wx},${y+1},${wz}`), worldMap.has(`${wx},${y-1},${wz}`),
+                            worldMap.has(`${wx},${y},${wz+1}`), worldMap.has(`${wx},${y},${wz-1}`)
+                        ];
+                        if(n.every(v => v) && type !== 'water' && type !== 'glass') continue;
+
+                        if(!types[type]) types[type] = [];
+                        types[type].push(new THREE.Matrix4().makeTranslation(wx, y, wz));
+                    }
+                }
+            }
+
+            Object.keys(types).forEach(type => {
+                const isWater = BLOCK_DATA[type].water;
+                const geo = new THREE.BoxGeometry(isWater ? 1 : 1, isWater ? 0.85 : 1, isWater ? 1 : 1);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    map: textures[type], 
+                    transparent: !!BLOCK_DATA[type].opacity, 
+                    opacity: BLOCK_DATA[type].opacity || 1,
+                    depthWrite: !isWater
+                });
+                const instanced = new THREE.InstancedMesh(geo, mat, types[type].length);
+                types[type].forEach((m, i) => instanced.setMatrixAt(i, m));
+                group.add(instanced);
+            });
+
+            scene.add(group);
+            chunkMeshes.set(key, group);
+        }
+
+        // --- WORLD MGR ---
+        function refreshWorldList() {
+            const list = document.getElementById('world-list');
+            list.innerHTML = '';
+            let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+            Object.keys(worlds).forEach(id => {
+                const div = document.createElement('div');
+                div.className = 'world-item';
+                div.innerHTML = `<span>${worlds[id].name}</span>`;
+                div.onclick = () => showOptionsScreen(id);
+                list.appendChild(div);
+            });
+            if(Object.keys(worlds).length === 0) list.innerHTML = `<div style="padding:10px; opacity:0.5">${i18n[currentLang].empty_worlds}</div>`;
+        }
+
+        function showCreateScreen() { document.getElementById('menu-screen').classList.add('hidden'); document.getElementById('create-screen').classList.remove('hidden'); }
+        function hideCreateScreen() { document.getElementById('menu-screen').classList.remove('hidden'); document.getElementById('create-screen').classList.add('hidden'); }
+        function showOptionsScreen(id) {
+            currentWorldId = id;
+            let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+            document.getElementById('selected-world-title').innerText = worlds[id].name;
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('options-screen').classList.remove('hidden');
+        }
+        function hideOptionsScreen() { document.getElementById('menu-screen').classList.remove('hidden'); document.getElementById('options-screen').classList.add('hidden'); }
+
+        function createNewWorld() {
+            const name = document.getElementById('world-name').value || "Mundo V5";
+            const seed = document.getElementById('world-seed').value || Math.random().toString();
+            const id = 'w_' + Date.now();
+            let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+            worlds[id] = { name, seed, data: { world: [], pos: {x:0, y:40, z:0}, gameTime: 8 } };
+            localStorage.setItem('luis_worlds_v5', JSON.stringify(worlds));
+            hideCreateScreen();
+            refreshWorldList();
+        }
+
+        function deleteSelectedWorld() {
+            let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+            delete worlds[currentWorldId];
+            localStorage.setItem('luis_worlds_v5', JSON.stringify(worlds));
+            hideOptionsScreen(); refreshWorldList();
+        }
+
+        function renameSelectedWorld() {
+            const n = prompt(i18n[currentLang].rename_prompt);
+            if(n) {
+                let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+                worlds[currentWorldId].name = n;
+                localStorage.setItem('luis_worlds_v5', JSON.stringify(worlds));
+                document.getElementById('selected-world-title').innerText = n;
+                refreshWorldList();
+            }
+        }
+
+        function playSelectedWorld() {
+            initEngine();
+            let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+            let w = worlds[currentWorldId];
+            simplex = new SimplexNoise(w.seed);
+            simplexBiomes = new SimplexNoise(w.seed + "_b");
+            worldMap = new Map(w.data.world);
+            camera.position.set(w.data.pos.x, w.data.pos.y, w.data.pos.z);
+            gameTime = w.data.gameTime;
+            document.getElementById('options-screen').classList.add('hidden');
+            document.getElementById('game-hud').classList.remove('hidden');
+            updateHUD();
             renderer.domElement.requestPointerLock();
         }
 
-        document.addEventListener('keydown', e => {
+        function updateHUD() {
+            const bar = document.getElementById('inventory-bar'); bar.innerHTML = '';
+            inventory_list.forEach((type, i) => {
+                const div = document.createElement('div');
+                div.className = `slot ${i === selectedSlot ? 'selected' : ''}`;
+                div.innerHTML = `<div class="slot-img" style="background:${BLOCK_DATA[type].color}; border: 1px solid rgba(255,255,255,0.2)"></div>`;
+                bar.appendChild(div);
+            });
+        }
+
+        function saveWorld() {
+            if(!currentWorldId) return;
+            let worlds = JSON.parse(localStorage.getItem('luis_worlds_v5') || '{}');
+            worlds[currentWorldId].data = { world: Array.from(worldMap.entries()), pos: {x:camera.position.x, y:camera.position.y, z:camera.position.z}, gameTime };
+            localStorage.setItem('luis_worlds_v5', JSON.stringify(worlds));
+        }
+
+        // --- LOOPS ---
+        function updatePhysics(delta) {
+            if(!document.pointerLockElement) return;
+
+            const p = camera.position;
+            const move = new THREE.Vector3();
+            if(keys['KeyW']) move.z -= 1; if(keys['KeyS']) move.z += 1;
+            if(keys['KeyA']) move.x -= 1; if(keys['KeyD']) move.x += 1;
+            move.applyEuler(new THREE.Euler(0, lookEuler.y, 0)).normalize();
+
+            const speed = isFlying ? 18 : 7;
+            
+            if(isFlying) {
+                velocity.y = 0;
+                if(keys['Space']) p.y += speed * delta;
+                if(keys['ShiftLeft']) p.y -= speed * delta;
+                p.add(move.multiplyScalar(speed * delta));
+            } else {
+                velocity.y -= 22 * delta;
+                p.x += move.x * speed * delta;
+                p.z += move.z * speed * delta;
+                p.y += velocity.y * delta;
+
+                let floorY = -1;
+                for(let y=Math.floor(p.y); y > 0; y--) {
+                    const t = worldMap.get(`${Math.round(p.x)},${y},${Math.round(p.z)}`);
+                    if(t && BLOCK_DATA[t].solid) { floorY = y + PLAYER_HEIGHT; break; }
+                }
+                if(p.y < floorY) { p.y = floorY; velocity.y = 0; }
+            }
+
+            camera.quaternion.setFromEuler(lookEuler);
+            
+            const cx = Math.floor(p.x / CHUNK_SIZE), cz = Math.floor(p.z / CHUNK_SIZE);
+            for(let dx=-RENDER_DIST; dx<=RENDER_DIST; dx++) {
+                for(let dz=-RENDER_DIST; dz<=RENDER_DIST; dz++) generateChunk(cx+dx, cz+dz);
+            }
+
+            updateAtmosphere(delta);
+        }
+
+        function updateAtmosphere(delta) {
+            gameTime += delta * 0.03; if(gameTime > 24) gameTime = 0;
+            const angle = (gameTime / 24) * Math.PI * 2 - Math.PI/2;
+            
+            sun.position.set(camera.position.x + Math.cos(angle)*100, Math.sin(angle)*100, camera.position.z + 50);
+            moon.position.set(camera.position.x + Math.cos(angle+Math.PI)*100, Math.sin(angle+Math.PI)*100, camera.position.z - 50);
+            
+            const isDay = gameTime > 6 && gameTime < 18;
+            scene.background = isDay ? new THREE.Color(0x87ceeb) : new THREE.Color(0x050515);
+            
+            // Cloud movement
+            cloudsGroup.position.x = camera.position.x;
+            cloudsGroup.position.z = camera.position.z;
+            cloudsGroup.children.forEach(c => {
+                c.position.x += delta * 2;
+                if(c.position.x > 200) c.position.x = -200;
+            });
+
+            const hour = Math.floor(gameTime).toString().padStart(2, '0');
+            const min = Math.floor((gameTime % 1) * 60).toString().padStart(2, '0');
+            document.getElementById('time-display').innerText = `${hour}:${min}`;
+        }
+
+        // --- EVENTS ---
+        window.addEventListener('keydown', e => {
             keys[e.code] = true;
-            if(e.code === 'KeyE') isInventoryOpen ? closeInventory() : openCrafting(false);
-            if(e.code === 'KeyP') saveWorld(); 
-            if(e.code === 'Space' && isGrounded) velocityY = 0.22;
-            if(e.code.startsWith('Digit')) selectedSlot = parseInt(e.code.slice(-1)) - 1;
-            updateHUD();
+            if(e.code === 'Space') {
+                const now = Date.now();
+                if(now - lastJumpTap < 300) {
+                    isFlying = !isFlying;
+                    document.getElementById('mode-indicator').innerText = isFlying ? 
+                        `${i18n[currentLang].creative_mode} (${i18n[currentLang].flying})` : 
+                        i18n[currentLang].creative_mode;
+                }
+                lastJumpTap = now;
+            }
+            if(e.code.startsWith('Digit')) {
+                selectedSlot = (parseInt(e.code.slice(-1)) - 1 + 9) % 9;
+                updateHUD();
+            }
         });
-        document.addEventListener('keyup', e => keys[e.code] = false);
-        document.addEventListener('mousemove', e => {
+        window.addEventListener('keyup', e => keys[e.code] = false);
+        window.addEventListener('mousemove', e => {
             if(document.pointerLockElement) {
                 lookEuler.y -= e.movementX * 0.002;
                 lookEuler.x -= e.movementY * 0.002;
                 lookEuler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, lookEuler.x));
             }
         });
-        document.addEventListener('mousedown', e => {
-            if(!isInventoryOpen) {
-                mouseBtn = e.button;
-                if(e.button === 2) {
-                    const ray = new THREE.Raycaster();
-                    ray.setFromCamera({x:0, y:0}, camera);
-                    const intersects = ray.intersectObjects(Array.from(blocks.values()));
-                    if(intersects.length > 0 && intersects[0].distance < 5) {
-                        const hit = intersects[0];
-                        if(hit.object.userData.type === 'crafting_table') openCrafting(true);
-                        else {
-                            const item = inventory[selectedSlot];
-                            if(item && item.count > 0 && !BLOCK_DATA[item.type].isItem) {
-                                const n = hit.face.normal;
-                                const p = hit.object.position;
-                                addBlock(Math.round(p.x+n.x), Math.round(p.y+n.y), Math.round(p.z+n.z), item.type);
-                                item.count--;
-                                if(item.count <= 0) inventory[selectedSlot] = null;
-                                updateHUD();
-                            }
+
+        window.addEventListener('mousedown', e => {
+            if(!document.pointerLockElement) return;
+            const ray = new THREE.Raycaster(); ray.setFromCamera({x:0, y:0}, camera);
+            let hit = null;
+            for(let i=0; i<70; i++) {
+                let tp = ray.ray.at(i * 0.1, new THREE.Vector3());
+                let rx = Math.round(tp.x), ry = Math.round(tp.y), rz = Math.round(tp.z);
+                const t = worldMap.get(`${rx},${ry},${rz}`);
+                if(t && t !== 'water') { hit = { x: rx, y: ry, z: rz }; break; }
+            }
+
+            if(e.button === 0 && hit) {
+                worldMap.delete(`${hit.x},${hit.y},${hit.z}`);
+                for(let x=-1; x<=1; x++) for(let z=-1; z<=1; z++) renderChunk(Math.floor(hit.x/CHUNK_SIZE)+x, Math.floor(hit.z/CHUNK_SIZE)+z);
+            } else if(e.button === 2) {
+                let prev = null;
+                for(let i=0; i<70; i++) {
+                    let tp = ray.ray.at(i * 0.1, new THREE.Vector3());
+                    let rx = Math.round(tp.x), ry = Math.round(tp.y), rz = Math.round(tp.z);
+                    if(worldMap.has(`${rx},${ry},${rz}`)) {
+                        if(prev) {
+                            worldMap.set(`${prev.x},${prev.y},${prev.z}`, inventory_list[selectedSlot]);
+                            for(let x=-1; x<=1; x++) for(let z=-1; z<=1; z++) renderChunk(Math.floor(prev.x/CHUNK_SIZE)+x, Math.floor(prev.z/CHUNK_SIZE)+z);
                         }
+                        break;
                     }
+                    prev = { x: rx, y: ry, z: rz };
                 }
             }
         });
-        document.addEventListener('mouseup', () => mouseBtn = -1);
 
         function animate() {
             requestAnimationFrame(animate);
-            updatePhysics();
-            handleInteractions();
+            const delta = Math.min(clock.getDelta(), 0.1);
+            updatePhysics(delta);
             renderer.render(scene, camera);
         }
 
-        window.onresize = () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        window.onload = () => {
+            updateUIStrings();
+            refreshWorldList();
         };
+        setInterval(saveWorld, 10000);
     </script>
 </body>
 </html>
