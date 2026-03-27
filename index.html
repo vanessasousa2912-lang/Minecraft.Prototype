@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft Creative - Luis Edition V5.3</title>
+    <title>Minecraft Creative - Luis Edition V5.4</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/jwagner/simplex-noise.js/simplex-noise.min.js"></script>
     <style>
@@ -738,6 +738,10 @@
         }
 
         window.addEventListener('mousedown', e => {
+            if(!document.pointerLockElement && isGameReady) {
+                renderer.domElement.requestPointerLock();
+                return; // Só reconecta o mouse, não quebra/coloca bloco nesse clique
+            }
             if(e.button === 0) performRaycastAction('break');
             else if(e.button === 2) performRaycastAction('place');
         });
@@ -770,6 +774,18 @@
                 lookEuler.x -= e.movementY * 0.002;
                 lookEuler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, lookEuler.x));
             }
+        });
+
+        // Salva imediatamente quando o jogador aperta ESC (sai do pointer lock)
+        document.addEventListener('pointerlockchange', () => {
+            if(!document.pointerLockElement && isGameReady) {
+                saveWorld(false); // Mostra o aviso na tela
+            }
+        });
+
+        // Salva silenciosamente caso o jogador feche ou atualize a guia
+        window.addEventListener('beforeunload', () => {
+            saveWorld(true);
         });
 
         function animate() {
